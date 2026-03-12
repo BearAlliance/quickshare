@@ -1,0 +1,11 @@
+{
+  "name": "jira-share",
+  "version": "1.0.0",
+  "private": true,
+  "description": "This browser extension allows you to share issues from Jira.",
+  "license": "ISC",
+  "author": "",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}

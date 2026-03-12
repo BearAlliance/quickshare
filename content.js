@@ -1,0 +1,175 @@
+(() => {
+  "use strict";
+
+  // --- Data extraction ---
+
+  function getIssueData() {
+    // Try URL path first: /browse/PROJ-123
+    const browseMatch = window.location.pathname.match(/\/browse\/([A-Z][A-Z0-9_]+-\d+)/);
+    let issueKey = browseMatch ? browseMatch[1] : null;
+
+    // Fallback: selectedIssue query param (board/modal view)
+    if (!issueKey) {
+      const params = new URLSearchParams(window.location.search);
+      const selected = params.get("selectedIssue");
+      if (selected && /^[A-Z][A-Z0-9_]+-\d+$/.test(selected)) {
+        issueKey = selected;
+      }
+    }
+
+    if (!issueKey) return null;
+
+    // Get issue title
+    const summaryEl = document.querySelector(
+      '[data-testid="issue.views.issue-base.foundation.summary.heading"]'
+    );
+    let title = summaryEl ? summaryEl.textContent.trim() : "";
+    if (!title) {
+      // Fallback: parse document title (typically "PROJ-123 - Title - Jira" or similar)
+      const docTitle = document.title;
+      const titleMatch = docTitle.match(/^\[?[A-Z][A-Z0-9_]+-\d+\]?\s*[-–]\s*(.+?)(?:\s*[-–]\s*Jira)?$/i);
+      title = titleMatch ? titleMatch[1].trim() : docTitle;
+    }
+
+    const url = `${window.location.origin}/browse/${issueKey}`;
+    return { issueKey, title, url };
+  }
+
+  // --- Clipboard ---
+
+  function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    // Fallback for Firefox edge cases
+    return new Promise((resolve, reject) => {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand("copy");
+        resolve();
+      } catch (err) {
+        reject(err);
+      } finally {
+        document.body.removeChild(textarea);
+      }
+    });
+  }
+
+  // --- Format + copy ---
+
+  function copyIssueLink(format) {
+    const data = getIssueData();
+    if (!data) return;
+
+    let text;
+    if (format === "slack") {
+      text = `<${data.url}|${data.issueKey}: ${data.title}>`;
+    } else {
+      text = `[${data.issueKey}: ${data.title}](${data.url})`;
+    }
+
+    const btn = document.querySelector(".jira-share-btn");
+    copyToClipboard(text).then(() => {
+      if (btn) {
+        const original = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(() => { btn.textContent = original; }, 1500);
+      }
+    });
+
+    // Close dropdown
+    const dropdown = document.querySelector(".jira-share-dropdown");
+    if (dropdown) dropdown.classList.remove("jira-share-open");
+  }
+
+  // --- UI ---
+
+  function createShareButton() {
+    const container = document.createElement("div");
+    container.id = "jira-share-btn";
+    container.className = "jira-share-container";
+
+    const btn = document.createElement("button");
+    btn.className = "jira-share-btn";
+    btn.textContent = "Share";
+    btn.type = "button";
+
+    const dropdown = document.createElement("div");
+    dropdown.className = "jira-share-dropdown";
+
+    const slackBtn = document.createElement("button");
+    slackBtn.className = "jira-share-dropdown-item";
+    slackBtn.textContent = "Slack";
+    slackBtn.type = "button";
+    slackBtn.addEventListener("click", () => copyIssueLink("slack"));
+
+    const mdBtn = document.createElement("button");
+    mdBtn.className = "jira-share-dropdown-item";
+    mdBtn.textContent = "Markdown";
+    mdBtn.type = "button";
+    mdBtn.addEventListener("click", () => copyIssueLink("markdown"));
+
+    dropdown.appendChild(slackBtn);
+    dropdown.appendChild(mdBtn);
+
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      dropdown.classList.toggle("jira-share-open");
+    });
+
+    container.appendChild(btn);
+    container.appendChild(dropdown);
+
+    // Close dropdown on outside click
+    document.addEventListener("click", (e) => {
+      if (!container.contains(e.target)) {
+        dropdown.classList.remove("jira-share-open");
+      }
+    });
+
+    return container;
+  }
+
+  // --- Injection ---
+
+  function tryInjectButton() {
+    if (document.getElementById("jira-share-btn")) return;
+    if (!getIssueData()) return;
+
+    const toolbar =
+      document.querySelector('[data-testid="issue.views.issue-base.foundation.quick-add.quick-add-item.all-items"]') ||
+      document.querySelector('[data-testid="issue-view-layout.header.actions"]');
+
+    if (!toolbar) return;
+
+    const shareButton = createShareButton();
+    toolbar.appendChild(shareButton);
+  }
+
+  // --- Observer ---
+
+  let lastUrl = window.location.href;
+  let debounceTimer = null;
+
+  const observer = new MutationObserver(() => {
+    // Detect SPA navigation
+    if (window.location.href !== lastUrl) {
+      lastUrl = window.location.href;
+      const existing = document.getElementById("jira-share-btn");
+      if (existing) existing.remove();
+    }
+
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(tryInjectButton, 300);
+  });
+
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  // Initial injection attempt
+  tryInjectButton();
+})();
