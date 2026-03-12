@@ -21,3 +21,7 @@ No build tooling, no background script — the entire extension is a content scr
 - **Firefox**: `about:debugging#/runtime/this-firefox` → Load Temporary Add-on → select `manifest.json`
 - No build step; edit files and reload the extension
 - No test suite configured yet (`npm test` is a placeholder)
+
+### Commit Message Format
+
+Use conventional commits.
