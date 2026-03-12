@@ -102,15 +102,30 @@
     const dropdown = document.createElement("div");
     dropdown.className = "jira-share-dropdown";
 
+    // Issue preview header
+    const header = document.createElement("div");
+    header.className = "jira-share-dropdown-header";
+    const headerKey = document.createElement("span");
+    headerKey.className = "jira-share-dropdown-key";
+    const headerTitle = document.createElement("span");
+    headerTitle.className = "jira-share-dropdown-title";
+    header.appendChild(headerKey);
+    header.appendChild(headerTitle);
+    dropdown.appendChild(header);
+
+    const divider = document.createElement("div");
+    divider.className = "jira-share-dropdown-divider";
+    dropdown.appendChild(divider);
+
     const slackBtn = document.createElement("button");
     slackBtn.className = "jira-share-dropdown-item";
-    slackBtn.textContent = "Slack";
+    slackBtn.textContent = "Copy as Slack";
     slackBtn.type = "button";
     slackBtn.addEventListener("click", () => copyIssueLink("slack"));
 
     const mdBtn = document.createElement("button");
     mdBtn.className = "jira-share-dropdown-item";
-    mdBtn.textContent = "Markdown";
+    mdBtn.textContent = "Copy as Markdown";
     mdBtn.type = "button";
     mdBtn.addEventListener("click", () => copyIssueLink("markdown"));
 
@@ -119,6 +134,12 @@
 
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
+      // Refresh issue data each time dropdown opens
+      const data = getIssueData();
+      if (data) {
+        headerKey.textContent = data.issueKey;
+        headerTitle.textContent = data.title;
+      }
       dropdown.classList.toggle("jira-share-open");
     });
 

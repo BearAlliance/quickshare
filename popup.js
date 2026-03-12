@@ -64,6 +64,8 @@
       return;
     }
 
+    document.getElementById("issue-key").textContent = data.issueKey;
+    document.getElementById("issue-title").textContent = data.title;
     document.getElementById("slack-btn").addEventListener("click", () => copyAndClose("slack", data));
     document.getElementById("markdown-btn").addEventListener("click", () => copyAndClose("markdown", data));
   });
