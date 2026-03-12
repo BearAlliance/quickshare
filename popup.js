@@ -10,19 +10,32 @@
     messageEl.textContent = text;
   }
 
-  function getIssueDataFromTab(tab) {
+  function isValidJiraHost(tabUrl, storedUrl) {
+    if (tabUrl.hostname.endsWith(".atlassian.net")) return true;
+    if (storedUrl && storedUrl.trim()) {
+      try {
+        const base = new URL(storedUrl).href.replace(/\/$/, "");
+        return tabUrl.href.startsWith(base + "/");
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  }
+
+  function getIssueDataFromTab(tab, storedUrl) {
     if (!tab || !tab.url) return null;
 
     let url;
     try { url = new URL(tab.url); } catch { return null; }
 
-    if (!url.hostname.endsWith(".atlassian.net")) return null;
+    if (!isValidJiraHost(url, storedUrl)) return null;
 
     // Try /browse/PROJ-123
     const browseMatch = url.pathname.match(/\/browse\/([A-Z][A-Z0-9_]+-\d+)/);
     let issueKey = browseMatch ? browseMatch[1] : null;
 
-    // Fallback: selectedIssue query param
+    // Fallback: selectedIssue query param (board/modal view)
     if (!issueKey) {
       const selected = url.searchParams.get("selectedIssue");
       if (selected && /^[A-Z][A-Z0-9_]+-\d+$/.test(selected)) {
@@ -32,14 +45,18 @@
 
     if (!issueKey) return null;
 
-    // Parse title from tab title (typically "PROJ-123 - Title - Jira" or "[PROJ-123] Title - Jira")
+    // Parse title from tab title
     const tabTitle = tab.title || "";
     const titleMatch = tabTitle.match(/^\[?[A-Z][A-Z0-9_]+-\d+\]?\s*[-–]?\s*(.+?)(?:\s*[-–]\s*Jira)?$/i);
     const rawTitle = titleMatch ? titleMatch[1].trim() : tabTitle;
     const title = rawTitle.replace(/^\[?[A-Z][A-Z0-9_]+-\d+\]?\s*[-–:]?\s*/i, "").trim();
 
-    const canonicalUrl = `${url.origin}/browse/${issueKey}`;
-    return { issueKey, title, url: canonicalUrl };
+    // Canonical URL: Cloud uses origin; Server uses stored base
+    const canonicalBase = url.hostname.endsWith(".atlassian.net")
+      ? url.origin
+      : new URL(storedUrl).href.replace(/\/$/, "");
+
+    return { issueKey, title, url: `${canonicalBase}/browse/${issueKey}` };
   }
 
   function copyAndClose(format, data) {
@@ -58,9 +75,17 @@
     });
   }
 
-  // Get the active tab and set up buttons
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    const data = getIssueDataFromTab(tabs[0]);
+  document.getElementById("settings-btn").addEventListener("click", () => {
+    chrome.runtime.openOptionsPage();
+  });
+
+  (async () => {
+    const [tabs, { jiraServerUrl }] = await Promise.all([
+      chrome.tabs.query({ active: true, currentWindow: true }),
+      chrome.storage.sync.get({ jiraServerUrl: "" })
+    ]);
+
+    const data = getIssueDataFromTab(tabs[0], jiraServerUrl);
     if (!data) {
       showMessage("Not on a Jira issue page.");
       return;
@@ -71,5 +96,5 @@
     document.getElementById("slack-btn").addEventListener("click", () => copyAndClose("slack", data));
     document.getElementById("markdown-btn").addEventListener("click", () => copyAndClose("markdown", data));
     document.getElementById("confluence-btn").addEventListener("click", () => copyAndClose("confluence", data));
-  });
+  })();
 })();
