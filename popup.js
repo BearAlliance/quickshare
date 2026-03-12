@@ -52,16 +52,9 @@
     const title = rawTitle.replace(/^\[?[A-Z][A-Z0-9_]+-\d+\]?\s*[-–:]?\s*/i, "").trim();
 
     // Canonical URL: Cloud uses origin; Server uses stored base
-    let canonicalBase;
-    if (url.hostname.endsWith(".atlassian.net")) {
-      canonicalBase = url.origin;
-    } else {
-      try {
-        canonicalBase = new URL(storedUrl).href.replace(/\/$/, "");
-      } catch {
-        canonicalBase = url.origin;
-      }
-    }
+    const canonicalBase = url.hostname.endsWith(".atlassian.net")
+      ? url.origin
+      : new URL(storedUrl).href.replace(/\/$/, "");
 
     return { issueKey, title, url: `${canonicalBase}/browse/${issueKey}` };
   }
